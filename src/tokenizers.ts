@@ -1,6 +1,27 @@
 "use strict";
 
 
+interface TokenizerConfig {
+    model: {
+        vocab: (string|number)[][];
+        unk_id: number;
+    };
+    pre_tokenizer: TokenProcessorConfig;
+    normalizer: TokenProcessorConfig;
+    decoder: TokenProcessorConfig;
+    added_tokens: any[];
+}
+
+interface TokenProcessorConfig {
+    type: string;
+    precompiled_charsmap: any | undefined;
+    pretokenizers: TokenProcessorConfig[] | undefined;
+    add_prefix_space: boolean | undefined;
+    replacement: string | undefined;
+    str_rep: string | undefined;
+}
+
+
 class AutoTokenizer {
     static async fromPretrained(modelId: string, modelsPath: string) {
         const modelIdParts = modelId.split('/');
@@ -13,8 +34,31 @@ class AutoTokenizer {
 }
 
 
+async function loadTokenizer(url: URL): Promise<Tokenizer> {
+    const response = await fetch(url);
+    const jtokenizer = await response.json();
+    return Tokenizer.fromConfig(jtokenizer);
+}
+
+
 class Tokenizer {
-    constructor(vocab, unkTokenId, specialTokens, normalizer, preTokenizer, decoder) {
+    bosToken: string;
+    bosTokenId: number;
+    eosToken: string;
+    eosTokenId: number;
+    unkToken: string;
+    unkTokenId: number;
+    private vocab: (string|number)[][];
+    private specialTokens: any[];
+    private specialTokenIds: Map<number, number>;
+    private trie: CharTrie;
+    private tokenToIds: Map<string, number>;
+    private minScore: number;
+    private unkScore: number;
+    private preTokenizer: TokenProcessor;
+    private normalizer: TokenProcessor;
+    private decoder: TokenProcessor;
+    constructor(vocab: (string|number)[][], unkTokenId: number, specialTokens: any[], normalizer: TokenProcessor, preTokenizer: TokenProcessor, decoder: TokenProcessor) {
         this.vocab = vocab;
         this.unkTokenId = unkTokenId;
         this.specialTokens = specialTokens;
@@ -22,35 +66,35 @@ class Tokenizer {
         this.normalizer = normalizer;
         this.preTokenizer = preTokenizer;
         this.decoder = decoder;
-        this.tokenToIds = new Map(vocab.map((x, i) => [this.normalize(x[0]), i]));
+        this.tokenToIds = new Map(vocab.map((x, i) => [this.normalize(String(x[0])), i]));
         this.bosToken = this.normalize(" ");
         this.bosTokenId = this.getTokenId(this.bosToken);
         this.eosToken = "</s>";
         this.eosTokenId = this.getTokenId(this.eosToken);
-        this.unkToken = this.vocab[this.unkTokenId][0];
+        this.unkToken = String(this.vocab[this.unkTokenId][0]);
         this.trie = new CharTrie();
         this.minScore = 1.0e6;
-        vocab.forEach(x => this.minScore = Math.min(this.minScore, x[1]));
+        vocab.forEach(x => this.minScore = Math.min(this.minScore, Number(x[1])));
         this.unkScore = this.minScore - 10.0;
         vocab[unkTokenId][1] = this.unkScore;
-        vocab.forEach(x => this.trie.push(x[0]));
+        vocab.forEach(x => this.trie.push(String(x[0])));
     }
-    static fromConfig(config) {
-        const preTokenizer = TokenProcessor.fromConfig(config.pre_tokenizer);
-        const normalizer = TokenProcessor.fromConfig(config.normalizer);
-        const decoder = TokenProcessor.fromConfig(config.decoder);
+    static fromConfig(config: TokenizerConfig) {
+        const preTokenizer: TokenProcessor = TokenProcessor.fromConfig(config.pre_tokenizer);
+        const normalizer: TokenProcessor = TokenProcessor.fromConfig(config.normalizer);
+        const decoder: TokenProcessor = TokenProcessor.fromConfig(config.decoder);
         return new Tokenizer(config.model.vocab, config.model.unk_id, config.added_tokens, normalizer, preTokenizer, decoder);
     }
-    getTokenId(normalizedToken) {
-        return this.tokenToIds.get(normalizedToken);
+    getTokenId(normalizedToken: string): number {
+        return this.tokenToIds.get(normalizedToken) || this.unkTokenId;
     }
-    normalize(text) {
+    private normalize(text: string): string {
         return this.normalizer.normalize(text);
     }
-    preTokenize(normalized) {
+    private preTokenize(normalized: string[]) {
         return this.preTokenizer.preTokenize(normalized);
     }
-    populateNodes(lattice) {
+    private populateNodes(lattice: TokenLattice) {
         const sentence = lattice.sentence;
         const len = sentence.length;
         let beginPos = 0;
@@ -61,7 +105,7 @@ class Tokenizer {
             for (let token of this.trie.commonPrefixSearch(sentence.slice(beginPos))) {
                 tokens.push(token);
                 const tokenId = this.getTokenId(token);
-                const tokenScore = this.vocab[tokenId][1];
+                const tokenScore = Number(this.vocab[tokenId][1]);
                 const n = token.length;
                 lattice.insert(beginPos, n, tokenScore, tokenId);
                 if (!hasSingleNode && n == mblen) {
@@ -74,13 +118,13 @@ class Tokenizer {
             beginPos += mblen;
         }
     }
-    tokenize(normalized) {
+    private tokenize(normalized: string) {
         const lattice = new TokenLattice(normalized, this.bosTokenId, this.eosTokenId);
         this.populateNodes(lattice);
         const tokenIds = lattice.tokenIds();
         return tokenIds;
     }
-    encode(text) {
+    encode(text: string): number[] {
         if (text === null || text === undefined || text.length === 0) return [this.eosTokenId];
         const normalized = this.normalize(text);
         const pre = this.preTokenize([normalized]);
@@ -92,7 +136,7 @@ class Tokenizer {
         tokens.push(this.eosTokenId);
         return tokens;
     }
-    decode(tokenIds, skipSpecialTokens) {
+    decode(tokenIds: number[], skipSpecialTokens: boolean): string {
         const tokens = tokenIds.map(x => {
             if (this.specialTokenIds.get(x) !== undefined && skipSpecialTokens) {
                 return "";
@@ -100,7 +144,7 @@ class Tokenizer {
             else if (x == this.unkTokenId) {
                 return this.unkToken + " ";
             } else if (x in this.vocab) {
-                return this.vocab[x][0];
+                return String(this.vocab[x][0]);
             } else {
                 return `[${x}]`;
             }
@@ -112,11 +156,25 @@ class Tokenizer {
 }
 
 
+class CharTrieNode {
+    isLeaf: boolean;
+    children: Map<string, CharTrieNode>;
+    constructor(isLeaf: boolean, children: Map<string, CharTrieNode>) {
+        this.isLeaf = isLeaf;
+        this.children = children;
+    }
+    static default(): CharTrieNode {
+        return new CharTrieNode(false, new Map());
+    }
+}
+
+
 class CharTrie {
+    private readonly root: CharTrieNode;
     constructor() {
         this.root = CharTrieNode.default();
     }
-    push(text) {
+    push(text: string) {
         let node = this.root;
         for (let i = 0; i < text.length; i++) {
             const ch = text[i];
@@ -129,8 +187,8 @@ class CharTrie {
         }
         node.isLeaf = true;
     }
-    *commonPrefixSearch(text) {
-        let node = this.root;
+    *commonPrefixSearch(text: string) {
+        let node: CharTrieNode|undefined = this.root;
         let prefix = "";
         for (let i = 0; i < text.length && node !== undefined; i++) {
             const ch = text[i];
@@ -142,19 +200,18 @@ class CharTrie {
         }
     }
 }
-class CharTrieNode {
-    constructor(isLeaf, children) {
-        this.isLeaf = isLeaf;
-        this.children = children;
-    }
-    static default() {
-        return new CharTrieNode(false, new Map());
-    }
-}
 
 
 class TokenLattice {
-    constructor(sentence, bosTokenId, eosTokenId) {
+    readonly sentence: string;
+    private nodes: TokenLatticeNode[];
+    private len: number;
+    private bosTokenId: number;
+    private eosTokenId: number;
+    private beginNodes: TokenLatticeNode[][];
+    private endNodes: TokenLatticeNode[][];
+
+    constructor(sentence: string, bosTokenId: number, eosTokenId: number) {
         this.sentence = sentence;
         this.len = sentence.length;
         this.bosTokenId = bosTokenId;
@@ -173,14 +230,14 @@ class TokenLattice {
         this.beginNodes[this.len].push(eos);
         this.endNodes[0].push(bos);
     }
-    insert(pos, length, score, tokenId) {
+    insert(pos: number, length: number, score: number, tokenId: number) {
         const nodeId = this.nodes.length;
         const node = new TokenLatticeNode(tokenId, nodeId, pos, length, score);
         this.beginNodes[pos].push(node);
         this.endNodes[pos + length].push(node);
         this.nodes.push(node);
     }
-    viterbi() {
+    viterbi(): TokenLatticeNode[] {
         const len = this.len;
         let pos = 0;
         while (pos <= len) {
@@ -214,16 +271,16 @@ class TokenLattice {
         if (prev === null) {
             return [];
         }
-        let node = prev.clone();
-        while (node.prev !== null) {
+        let node: TokenLatticeNode|null = prev.clone();
+        while (node !== null && node.prev !== null) {
             results.push(node.clone());
             const n = node.clone();
-            node = n.prev.clone();
+            node = n.prev !== null ? n.prev.clone() : null;
         }
         results.reverse();
         return results;
     }
-    piece(node) {
+    piece(node: TokenLatticeNode) {
         return this.sentence.slice(node.pos, node.pos + node.length);
     }
     tokens() {
@@ -236,7 +293,14 @@ class TokenLattice {
     }
 }
 class TokenLatticeNode {
-    constructor(tokenId, nodeId, pos, length, score) {
+    readonly tokenId: number;
+    readonly nodeId: number;
+    readonly pos: number;
+    readonly length: number;
+    readonly score: number;
+    prev: TokenLatticeNode|null;
+    backtraceScore: number;
+    constructor(tokenId: number, nodeId: number, pos: number, length: number, score: number) {
         this.tokenId = tokenId;
         this.nodeId = nodeId;
         this.pos = pos;
@@ -253,31 +317,37 @@ class TokenLatticeNode {
     }
 }
 
-
 class TokenProcessor {
-    static fromConfig(config) {
+    static fromConfig(config: TokenProcessorConfig): TokenProcessor {
         switch (config.type) {
             case "Metaspace":
-                return new MetaspaceTokenProcessor(config.add_prefix_space, config.replacement, config.str_rep);
+                return new MetaspaceTokenProcessor(config.add_prefix_space || false, config.replacement || "", config.str_rep);
             case "Precompiled":
                 return new PrecompiledTokenProcessor(config.precompiled_charsmap);
             case 'Sequence':
-                return new SequenceTokenProcessor(config.pretokenizers.map(x => TokenProcessor.fromConfig(x)));
+                return new SequenceTokenProcessor((config.pretokenizers||[]).map(x => TokenProcessor.fromConfig(x)));
             case "WhitespaceSplit":
                 return new WhitespaceSplitTokenProcessor();
             default:
                 throw new Error('Unknown token processor type: ' + config.type);
         }
-    }
+    }    
+    normalize(text: string): string { return text; }
+    preTokenize(tokens: string[]): string[] { return tokens; }
+    decodeChain(tokens: string[]): string[] { return tokens; }
 }
+
 class MetaspaceTokenProcessor extends TokenProcessor {
-    constructor(add_prefix_space, replacement, str_rep) {
+    addPrefixSpace: boolean;
+    replacement: string;
+    strRep: string
+    constructor(add_prefix_space: boolean, replacement: string, str_rep: string | undefined) {
         super();
         this.addPrefixSpace = add_prefix_space;
         this.replacement = replacement;
         this.strRep = str_rep || this.replacement;
     }
-    preTokenize(normalizedTokens) {
+    override preTokenize(normalizedTokens: string[]) {
         const result = [];
         for (let token of normalizedTokens) {
             let normalized = token.replace(" ", this.strRep);
@@ -288,7 +358,7 @@ class MetaspaceTokenProcessor extends TokenProcessor {
         }
         return result;
     }
-    decodeChain(tokens) {
+    decodeChain(tokens: string[]): string[] {
         const result = [];
         let i = 0;
         for (let token of tokens) {
@@ -303,20 +373,23 @@ class MetaspaceTokenProcessor extends TokenProcessor {
     }
 }
 class PrecompiledTokenProcessor extends TokenProcessor {
-    constructor(charsmap) {
+    charsmap: any;
+    constructor(charsmap: any) {
         super();
         this.charsmap = charsmap;
     }
-    normalize(text) {
+    override normalize(text: string) {
         return text;
     }
 }
+
 class SequenceTokenProcessor extends TokenProcessor {
-    constructor(tokenizers) {
+    tokenizers: TokenProcessor[];
+    constructor(tokenizers: TokenProcessor[]) {
         super();
         this.tokenizers = tokenizers;
     }
-    preTokenize(normalizedTokens) {
+    override preTokenize(normalizedTokens: string[]) {
         let result = normalizedTokens;
         for (let tokenizer of this.tokenizers) {
             result = tokenizer.preTokenize(result);
@@ -324,20 +397,14 @@ class SequenceTokenProcessor extends TokenProcessor {
         return result;
     }
 }
+
 class WhitespaceSplitTokenProcessor extends TokenProcessor {
-    preTokenize(normalizedTokens) {
+    preTokenize(normalizedTokens: string[]) {
         const result = [];
         for (let token of normalizedTokens) {
             result.push(...token.split(/\s+/));
         }
         return result;
     }
-}
-
-
-async function loadTokenizer(url) {
-    const response = await fetch(url);
-    const jtokenizer = await response.json();
-    return Tokenizer.fromConfig(jtokenizer);
 }
 

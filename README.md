@@ -1,5 +1,7 @@
 # web-transformers
 
+[![Build and test](https://github.com/praeclarum/web-transformers/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/praeclarum/web-transformers/actions/workflows/build.yml)
+
 Transformer neural networks in the browser.
 
 ## License

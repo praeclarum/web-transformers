@@ -18,6 +18,11 @@ export interface GenerateOptions {
     numBeams: number | undefined;
 }
 
+interface NamedTensor {
+    name: string;
+    data: ort.Tensor;
+}
+
 export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
     readonly encoderSession: ort.InferenceSession;
     readonly initDecoderSession: ort.InferenceSession;
@@ -155,7 +160,7 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
         return logitAndId[0][1];
     }
 
-    protected abstract forward(inputIds: number[], decoderInputIds: number[], encoderOutputs: ort.Tensor|null, pastKeyValues: ((string|ort.Tensor)[][]|null)): Promise<Seq2SeqLMOutput>;
+    protected abstract forward(inputIds: number[], decoderInputIds: number[], encoderOutputs: ort.Tensor|null, pastKeyValues: (NamedTensor[]|null)): Promise<Seq2SeqLMOutput>;
 }
 
 class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
@@ -163,7 +168,7 @@ class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
         super(encoderSession, initDecoderSession, decoderSession);
     }
 
-    protected override async forward(inputIds: number[], decoderInputIds: number[], encoderOutputs: ort.Tensor, pastKeyValues: ((string|ort.Tensor)[][]|null)) {
+    protected override async forward(inputIds: number[], decoderInputIds: number[], encoderOutputs: ort.Tensor, pastKeyValues: (NamedTensor[]|null)) {
         const inputIdsTensor = new ort.Tensor("int64", new BigInt64Array(inputIds.map((x:number) => BigInt(x))), [1, inputIds.length]);
         const encoderAttentionMaskTensor = new ort.Tensor("int64", new BigInt64Array(inputIds.length).fill(BigInt(1)), [1, inputIds.length]);
         if (encoderOutputs === null) {
@@ -196,8 +201,8 @@ class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
         }
         else {
             // console.log("Decoding...");
-            for (const [k, v] of pastKeyValues) {
-                decoderFeeds[String(k)] = v;
+            for (const p of pastKeyValues) {
+                decoderFeeds[p.name] = p.data;
             }
             const decoderResults = await this.decoderSession.run(decoderFeeds);
             logits = decoderResults.logits;
@@ -207,12 +212,12 @@ class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
         return new Seq2SeqLMOutput(logits, pastKeyValues, encoderOutputs);
     }
 
-    private getPastKeyValues(pkvNames: string[], decoderResults: ort.InferenceSession.OnnxValueMapType): (string|ort.Tensor)[][] {
-        const pkvs: (string|ort.Tensor)[][] = [];
+    private getPastKeyValues(pkvNames: string[], decoderResults: ort.InferenceSession.OnnxValueMapType): NamedTensor[] {
+        const pkvs: NamedTensor[] = [];
         for (const i in pkvNames) {
             const k = pkvNames[i];
             const v = decoderResults[k] as ort.Tensor;
-            pkvs.push([`pkv_${i}`, v]);
+            pkvs.push({name:`pkv_${i}`, data:v});
         }
         return pkvs;
     }
@@ -221,9 +226,9 @@ class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
 
 class Seq2SeqLMOutput {
     readonly logits: ort.Tensor;
-    readonly pastKeyValues: (string|ort.Tensor)[][];
+    readonly pastKeyValues: NamedTensor[];
     readonly encoderOutputs: ort.Tensor;
-    constructor(logits: ort.Tensor, pastKeyValues: (string|ort.Tensor)[][], encoderOutputs: ort.Tensor) {
+    constructor(logits: ort.Tensor, pastKeyValues: NamedTensor[], encoderOutputs: ort.Tensor) {
         this.logits = logits;
         this.pastKeyValues = pastKeyValues;
         this.encoderOutputs = encoderOutputs;

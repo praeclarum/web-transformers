@@ -13,9 +13,9 @@ export abstract class PretrainedModel {
 
 export interface GenerateOptions {
     maxLength: number;
-    topK: number | undefined;
-    topP: number | undefined;
-    numBeams: number | undefined;
+    topK?: number;
+    topP?: number;
+    numBeams?: number;
 }
 
 interface NamedTensor {

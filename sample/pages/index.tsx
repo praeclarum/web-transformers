@@ -14,6 +14,7 @@ export default function Home() {
   const [inputLang, setInputLang] = useState('English');
   const [outputLang, setOutputLang] = useState('French');
   const [inputText, setInputText] = useState('The universe is a dark forest.');
+  const [inputDebug, setInputDebug] = useState('');
   const [outputText, setOutputText] = useState('');
 
   const tokenizer = useRef(AutoTokenizer.fromPretrained(modelId, "/models"));
@@ -35,10 +36,22 @@ export default function Home() {
     translate(inputText, newOutputLang);
   }
 
-  async function translate(inputText: string, outputLang: string) {
-    const output = await model.current.generate();
-    setOutputText(inputText + " in " + outputLang + " is ...");
-  }
+  const translate = async (inputText: string, outputLang: string) => {
+    const generationOptions = {
+        "maxLength": 50,
+        "topK": 0,
+    };
+    const fullInput = `translate ${inputLang} to ${outputLang}: ${inputText.trim()}`;
+    const inputTokenIds = await tokenizer.current.encode(fullInput);
+    setInputDebug(fullInput + " = " + inputTokenIds.join(" "));
+    async function generateProgress(outputTokenIds: number[], forInputIds: number[]) {
+        return true;
+    }
+    const finalOutputTokenIds = await model.current.generate(inputTokenIds, generationOptions, generateProgress);
+    const finalOutput = (await tokenizer.current.decode(finalOutputTokenIds, true)).trim();
+    setOutputText(finalOutput);
+    setStatus("Ready");
+  };
 
   return (
     <div className="content">
@@ -61,7 +74,7 @@ export default function Home() {
                         </p>
                         <textarea id="input" name="input" className="input"
                             onInput={onInputChanged} value={inputText}></textarea>
-                        <p id="inputDebug" className="debug"></p>
+                        <p id="inputDebug" className="debug">{inputDebug}</p>
                     </div>
                     <div className="translation-output">
                         <p>

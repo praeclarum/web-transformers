@@ -24,41 +24,48 @@ interface NamedTensor {
 }
 
 export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
-    readonly encoderSession: ort.InferenceSession;
-    readonly initDecoderSession: ort.InferenceSession;
-    readonly decoderSession: ort.InferenceSession;
+    private modelId: string;
+    private modelsPath: string;
+    private progressAsyncCallback: ((progress: number) => Promise<void>) | undefined;
+    private sessions: ort.InferenceSession[] = [];
 
-    constructor(encoderSession: ort.InferenceSession, initDecoderSession: ort.InferenceSession, decoderSession: ort.InferenceSession) {
+    protected constructor(modelId: string, modelsPath: string, progressAsyncCallback: ((progress: number) => Promise<void>) | undefined) {
         super();
-        this.encoderSession = encoderSession;
-        this.initDecoderSession = initDecoderSession;
-        this.decoderSession = decoderSession;
+        this.modelId = modelId;
+        this.modelsPath = modelsPath;
+        this.progressAsyncCallback = progressAsyncCallback;
     }
 
-    static async fromPretrained(modelId: string, modelsPath: string, progressAsyncCallback: ((progress: number) => Promise<void>) | undefined = undefined) {
-        // TODO: This should load different model types. Right now it's hardcoded to T5.
+    static fromPretrained(modelId: string, modelsPath: string, progressAsyncCallback: ((progress: number) => Promise<void>) | undefined = undefined) {
+        return new T5ForConditionalGeneration(modelId, modelsPath, progressAsyncCallback);
+    }
 
-        const modelIdParts = modelId.split('/');
+    protected async getSessions() {
+        if (this.sessions.length > 0) {
+            return this.sessions;
+        }
+
+        const modelIdParts = this.modelId.split('/');
         const modelName = modelIdParts[modelIdParts.length - 1];
         const suffix = "-quantized";
-        const encoderUrl = `${modelsPath}/${modelName}-encoder${suffix}.onnx`;
-        const initDecoderUrl = `${modelsPath}/${modelName}-init-decoder${suffix}.onnx`;
-        const decoderUrl = `${modelsPath}/${modelName}-decoder${suffix}.onnx`;
+        const encoderUrl = `${this.modelsPath}/${modelName}-encoder${suffix}.onnx`;
+        const initDecoderUrl = `${this.modelsPath}/${modelName}-init-decoder${suffix}.onnx`;
+        const decoderUrl = `${this.modelsPath}/${modelName}-decoder${suffix}.onnx`;
 
         const progressMax = 4;
         let progress = 0;
-        async function incrementProgress() {
+        const incrementProgress = async() => {
             progress++;
             const p = progress / progressMax;
-            console.log(`Loading model ${modelId}... ${p * 100}%`);
-            if (progressAsyncCallback) {
-                await progressAsyncCallback(p);
+            console.log(`Loading model ${this.modelId}... ${p * 100}%`);
+            if (this.progressAsyncCallback) {
+                await this.progressAsyncCallback(p);
             }
-        }
+        };
         await incrementProgress();
-        const encoderSessionPromise = this.loadSession(encoderUrl);
-        const initDecoderSessionPromise = this.loadSession(initDecoderUrl);
-        const decoderSessionPromise = this.loadSession(decoderUrl);
+        const encoderSessionPromise = PretrainedModel.loadSession(encoderUrl);
+        const initDecoderSessionPromise = PretrainedModel.loadSession(initDecoderUrl);
+        const decoderSessionPromise = PretrainedModel.loadSession(decoderUrl);
         const encoderSession = await encoderSessionPromise;
         await incrementProgress();
         const initDecoderSession = await initDecoderSessionPromise;
@@ -66,7 +73,8 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
         const decoderSession = await decoderSessionPromise;
         await incrementProgress();
 
-        return new T5ForConditionalGeneration(encoderSession, initDecoderSession, decoderSession);
+        this.sessions = [encoderSession, initDecoderSession, decoderSession];
+        return this.sessions;
     }
 
     /**
@@ -164,20 +172,21 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
 }
 
 class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
-    constructor(encoderSession: ort.InferenceSession, initDecoderSession: ort.InferenceSession, decoderSession: ort.InferenceSession) {
-        super(encoderSession, initDecoderSession, decoderSession);
+    constructor(modelId: string, modelsPath: string, progressAsyncCallback: ((progress: number) => Promise<void>) | undefined = undefined) {
+        super(modelId, modelsPath, progressAsyncCallback);
     }
 
     protected override async forward(inputIds: number[], decoderInputIds: number[], encoderOutputs: ort.Tensor, pastKeyValues: (NamedTensor[]|null)) {
         const inputIdsTensor = new ort.Tensor("int64", new BigInt64Array(inputIds.map((x:number) => BigInt(x))), [1, inputIds.length]);
         const encoderAttentionMaskTensor = new ort.Tensor("int64", new BigInt64Array(inputIds.length).fill(BigInt(1)), [1, inputIds.length]);
+        const [encoderSession, initDecoderSession, decoderSession] = await this.getSessions();
         if (encoderOutputs === null) {
             // console.log("Encoding...");
             const encoderFeeds = {
                 "input_ids": inputIdsTensor,
                 "attention_mask": encoderAttentionMaskTensor,
             }
-            const encoderResults = await this.encoderSession.run(encoderFeeds);
+            const encoderResults = await encoderSession.run(encoderFeeds);
             const encoderHiddenStates = encoderResults.hidden_states;
             encoderOutputs = encoderHiddenStates;
             // console.log("Encoding done.", encoderOutputs);
@@ -194,9 +203,9 @@ class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
 
         if (pastKeyValues === null) {
             // console.log("Init Decoding...");
-            const initDecoderResults = await this.initDecoderSession.run(decoderFeeds);
+            const initDecoderResults = await initDecoderSession.run(decoderFeeds);
             logits = initDecoderResults.logits;
-            pastKeyValues = this.getPastKeyValues(this.initDecoderSession.outputNames.slice(1), initDecoderResults);
+            pastKeyValues = this.getPastKeyValues(initDecoderSession.outputNames.slice(1), initDecoderResults);
             // console.log("Init Decoding done.", logits, pastKeyValues);
         }
         else {
@@ -204,9 +213,9 @@ class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
             for (const p of pastKeyValues) {
                 decoderFeeds[p.name] = p.data;
             }
-            const decoderResults = await this.decoderSession.run(decoderFeeds);
+            const decoderResults = await decoderSession.run(decoderFeeds);
             logits = decoderResults.logits;
-            pastKeyValues = this.getPastKeyValues(this.decoderSession.outputNames.slice(1), decoderResults);
+            pastKeyValues = this.getPastKeyValues(decoderSession.outputNames.slice(1), decoderResults);
             // console.log("Decoding done.", logits, pastKeyValues);
         }
         return new Seq2SeqLMOutput(logits, pastKeyValues, encoderOutputs);

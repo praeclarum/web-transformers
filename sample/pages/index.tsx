@@ -2,14 +2,26 @@ import Head from 'next/head'
 import Image from 'next/image'
 import styles from '../styles/Home.module.css'
 
-import { useState, useCallback, FormEvent, ChangeEvent } from 'react';
+import { AutoTokenizer, AutoModelForSeq2SeqLM } from '../../lib';
+
+import { useState, useRef, FormEvent, ChangeEvent, useEffect } from 'react';
 
 export default function Home() {
 
+  const modelId = "t5-small";
+
+  const [status, setStatus] = useState('Loading...');
   const [inputLang, setInputLang] = useState('English');
   const [outputLang, setOutputLang] = useState('French');
   const [inputText, setInputText] = useState('The universe is a dark forest.');
   const [outputText, setOutputText] = useState('');
+
+  const tokenizer = useRef(AutoTokenizer.fromPretrained(modelId, "/models"));
+  const model = useRef(AutoModelForSeq2SeqLM.fromPretrained(modelId, "/models", async function (progress) {
+    const message = `Loading the neural network... ${Math.round(progress * 100)}%`;
+    setStatus(message);
+    setOutputText(message);
+  }));
 
   async function onInputChanged(event: FormEvent<HTMLTextAreaElement>) {
     const newInput = event.currentTarget.value;
@@ -24,6 +36,7 @@ export default function Home() {
   }
 
   async function translate(inputText: string, outputLang: string) {
+    const output = await model.current.generate();
     setOutputText(inputText + " in " + outputLang + " is ...");
   }
 
@@ -38,7 +51,7 @@ export default function Home() {
 
         <section className="translator">
             <div className="translation-form">
-                <p><b>Status</b> <span id="status">Loading...</span></p>
+                <p><b>Status</b> <span id="status">{status}</span></p>
                 <div className="translation-group">
                     <div className="translation-input">
                         <p>

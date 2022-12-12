@@ -54,6 +54,26 @@ export default function Home() {
     setStatus("Ready");
   };
 
+  const worker = useMemo(() => typeof window !== "undefined" ? new Worker("/worker.js") : null, []);
+
+  const translateWithWorker = async (inputText: string, outputLang: string) => {
+    const generationOptions = {
+        "maxLength": 50,
+        "topK": 0,
+    };
+    const fullInput = `translate ${inputLang} to ${outputLang}: ${inputText.trim()}`;
+    const inputTokenIds = await tokenizer.current.encode(fullInput);
+    async function generateProgress(outputTokenIds: number[], forInputIds: number[]) {
+        let shouldContinue = true;
+        return shouldContinue;
+    }
+    const finalOutputTokenIds = await model.current.generate(inputTokenIds, generationOptions, generateProgress);
+    const finalOutput = (await tokenizer.current.decode(finalOutputTokenIds, true)).trim();
+    setInputDebug(fullInput + " = " + inputTokenIds.join(" "));
+    setOutputText(finalOutput);
+    setStatus("Ready");
+  };
+
   return (
     <div className="content">
         <header>

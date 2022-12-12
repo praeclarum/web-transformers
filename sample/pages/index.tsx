@@ -4,7 +4,7 @@ import styles from '../styles/Home.module.css'
 
 import { AutoTokenizer, AutoModelForSeq2SeqLM } from '../../lib';
 
-import { useState, useRef, FormEvent, ChangeEvent, useEffect } from 'react';
+import { useState, useRef, FormEvent, ChangeEvent, useEffect, useMemo } from 'react';
 
 export default function Home() {
 
@@ -43,12 +43,13 @@ export default function Home() {
     };
     const fullInput = `translate ${inputLang} to ${outputLang}: ${inputText.trim()}`;
     const inputTokenIds = await tokenizer.current.encode(fullInput);
-    setInputDebug(fullInput + " = " + inputTokenIds.join(" "));
     async function generateProgress(outputTokenIds: number[], forInputIds: number[]) {
-        return true;
+        let shouldContinue = true;
+        return shouldContinue;
     }
     const finalOutputTokenIds = await model.current.generate(inputTokenIds, generationOptions, generateProgress);
     const finalOutput = (await tokenizer.current.decode(finalOutputTokenIds, true)).trim();
+    setInputDebug(fullInput + " = " + inputTokenIds.join(" "));
     setOutputText(finalOutput);
     setStatus("Ready");
   };

@@ -1,7 +1,7 @@
-import { transformers } from '../index';
+import { AutoModelForSeq2SeqLM } from '../index';
 
 describe('transformers', () => {
-  beforeAll(() => {});
-
-  test('nop', () => {});
+  test('nop', () => {
+    expect(AutoModelForSeq2SeqLM).toBeTruthy();
+  });
 });

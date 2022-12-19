@@ -8,11 +8,11 @@ Transformer neural networks in the browser.
 ## Usage
 
 ```typescript
-import { AutoTokenizer, AutoModelForSeq2SeqLM } from 'web-transformers';
+import { AutoTokenizer, T5ForConditionalGeneration } from 'web-transformers';
 
 // Load the tokenizer and model
 const tokenizer = AutoTokenizer.fromPretrained(modelId, modelsPath);
-const model = AutoModelForSeq2SeqLM.fromPretrained(modelId, modelsPath, async function (progress) {
+const model = new T5ForConditionalGeneration(modelId, modelsPath, async progress => {
     console.log(`Loading the neural network... ${Math.round(progress * 100)}%`);
 });
 

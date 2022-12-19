@@ -1,7 +1,7 @@
 'use strict';
-import { TokenProcessorConfig, TokenProcessor } from "./TokenProcessor";
-import { TokenLattice } from "./TokenLattice";
-import { CharTrie } from "./CharTrie";
+import { TokenProcessorConfig, TokenProcessor } from './TokenProcessor';
+import { TokenLattice } from './TokenLattice';
+import { CharTrie } from './CharTrie';
 
 export async function loadTokenizer(url: string): Promise<Tokenizer> {
   const response = await fetch(url);
@@ -43,7 +43,7 @@ export class Tokenizer {
     specialTokens: any[],
     normalizer: TokenProcessor,
     preTokenizer: TokenProcessor,
-    decoder: TokenProcessor
+    decoder: TokenProcessor,
   ) {
     this.vocab = vocab;
     this.unkTokenId = unkTokenId;
@@ -75,7 +75,7 @@ export class Tokenizer {
       config.added_tokens,
       normalizer,
       preTokenizer,
-      decoder
+      decoder,
     );
   }
   getTokenId(normalizedToken: string): number {
@@ -118,8 +118,7 @@ export class Tokenizer {
     return tokenIds;
   }
   encode(text: string): number[] {
-    if (text === null || text === undefined || text.length === 0)
-      return [this.eosTokenId];
+    if (text === null || text === undefined || text.length === 0) return [this.eosTokenId];
     const normalized = this.normalize(text);
     const pre = this.preTokenize([normalized]);
     const tokens = [];

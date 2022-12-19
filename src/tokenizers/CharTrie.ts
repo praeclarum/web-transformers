@@ -43,5 +43,3 @@ class CharTrieNode {
     return new CharTrieNode(false, new Map());
   }
 }
-
-

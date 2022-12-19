@@ -1,7 +1,5 @@
 'use strict';
-import { Tokenizer } from "./Tokenizer";
-
-
+import { Tokenizer } from './Tokenizer';
 
 export class AutoTokenizer {
   private tokenizer: Tokenizer | null = null;

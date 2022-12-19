@@ -1,27 +1,8 @@
 import * as ort from 'onnxruntime-web';
-
-export abstract class PretrainedModel {
-  static async loadSession(modelSource: string) {
-    console.log('Loading session from', modelSource);
-    const response = await fetch(modelSource, { cache: 'force-cache' });
-    const modelBuffer = await response.arrayBuffer();
-    const session = await ort.InferenceSession.create(modelBuffer, { executionProviders: ['wasm'] });
-    console.log('Session loaded from', modelSource);
-    return session;
-  }
-}
-
-export interface GenerateOptions {
-  maxLength: number;
-  topK?: number;
-  topP?: number;
-  numBeams?: number;
-}
-
-interface NamedTensor {
-  name: string;
-  data: ort.Tensor;
-}
+import { GenerateOptions } from './GenerateOptions';
+import { PretrainedModel } from './PretrainedModel';
+import { NamedTensor } from './NamedTensor';
+import { Seq2SeqLMOutput } from './Seq2SeqLMOutput';
 
 export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
   private modelId: string;
@@ -38,14 +19,6 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
     this.modelId = modelId;
     this.modelsPath = modelsPath;
     this.progressAsyncCallback = progressAsyncCallback;
-  }
-
-  static fromPretrained(
-    modelId: string,
-    modelsPath: string,
-    progressAsyncCallback: ((progress: number) => Promise<void>) | undefined = undefined,
-  ) {
-    return new T5ForConditionalGeneration(modelId, modelsPath, progressAsyncCallback);
   }
 
   protected async getSessions() {
@@ -189,93 +162,4 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
     encoderOutputs: ort.Tensor | null,
     pastKeyValues: NamedTensor[] | null,
   ): Promise<Seq2SeqLMOutput>;
-}
-
-class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
-  constructor(
-    modelId: string,
-    modelsPath: string,
-    progressAsyncCallback: ((progress: number) => Promise<void>) | undefined = undefined,
-  ) {
-    super(modelId, modelsPath, progressAsyncCallback);
-  }
-
-  protected override async forward(
-    inputIds: number[],
-    decoderInputIds: number[],
-    encoderOutputs: ort.Tensor,
-    pastKeyValues: NamedTensor[] | null,
-  ) {
-    const inputIdsTensor = new ort.Tensor('int64', new BigInt64Array(inputIds.map((x: number) => BigInt(x))), [
-      1,
-      inputIds.length,
-    ]);
-    const encoderAttentionMaskTensor = new ort.Tensor('int64', new BigInt64Array(inputIds.length).fill(BigInt(1)), [
-      1,
-      inputIds.length,
-    ]);
-    const [encoderSession, initDecoderSession, decoderSession] = await this.getSessions();
-    if (encoderOutputs === null) {
-      // console.log("Encoding...");
-      const encoderFeeds = {
-        input_ids: inputIdsTensor,
-        attention_mask: encoderAttentionMaskTensor,
-      };
-      const encoderResults = await encoderSession.run(encoderFeeds);
-      const encoderHiddenStates = encoderResults.hidden_states;
-      encoderOutputs = encoderHiddenStates;
-      // console.log("Encoding done.", encoderOutputs);
-    }
-
-    const decoderInputIdsTensor = new ort.Tensor('int64', new BigInt64Array(decoderInputIds.map((x) => BigInt(x))), [
-      1,
-      decoderInputIds.length,
-    ]);
-    // const decoderAttentionMaskTensor = new ort.Tensor("int64", new BigInt64Array(decoderInputIds.length).fill(1n), [1, decoderInputIds.length]);
-    const decoderFeeds: any = {
-      input_ids: decoderInputIdsTensor,
-      encoder_attention_mask: encoderAttentionMaskTensor,
-      encoder_hidden_states: encoderOutputs,
-    };
-    let logits = null;
-
-    if (pastKeyValues === null) {
-      // console.log("Init Decoding...");
-      const initDecoderResults = await initDecoderSession.run(decoderFeeds);
-      logits = initDecoderResults.logits;
-      pastKeyValues = this.getPastKeyValues(initDecoderSession.outputNames.slice(1), initDecoderResults);
-      // console.log("Init Decoding done.", logits, pastKeyValues);
-    } else {
-      // console.log("Decoding...");
-      for (const p of pastKeyValues) {
-        decoderFeeds[p.name] = p.data;
-      }
-      const decoderResults = await decoderSession.run(decoderFeeds);
-      logits = decoderResults.logits;
-      pastKeyValues = this.getPastKeyValues(decoderSession.outputNames.slice(1), decoderResults);
-      // console.log("Decoding done.", logits, pastKeyValues);
-    }
-    return new Seq2SeqLMOutput(logits, pastKeyValues, encoderOutputs);
-  }
-
-  private getPastKeyValues(pkvNames: string[], decoderResults: ort.InferenceSession.OnnxValueMapType): NamedTensor[] {
-    const pkvs: NamedTensor[] = [];
-    for (const i in pkvNames) {
-      const k = pkvNames[i];
-      const v = decoderResults[k] as ort.Tensor;
-      pkvs.push({ name: `pkv_${i}`, data: v });
-    }
-    return pkvs;
-  }
-}
-
-class Seq2SeqLMOutput {
-  readonly logits: ort.Tensor;
-  readonly pastKeyValues: NamedTensor[];
-  readonly encoderOutputs: ort.Tensor;
-  constructor(logits: ort.Tensor, pastKeyValues: NamedTensor[], encoderOutputs: ort.Tensor) {
-    this.logits = logits;
-    this.pastKeyValues = pastKeyValues;
-    this.encoderOutputs = encoderOutputs;
-  }
 }

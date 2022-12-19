@@ -2,11 +2,11 @@
 
 export interface TokenProcessorConfig {
   type: string;
-  precompiled_charsmap: any | undefined;
-  pretokenizers: TokenProcessorConfig[] | undefined;
-  add_prefix_space: boolean | undefined;
-  replacement: string | undefined;
-  str_rep: string | undefined;
+  precompiled_charsmap?: any;
+  pretokenizers?: TokenProcessorConfig[];
+  add_prefix_space?: boolean;
+  replacement?: string;
+  str_rep?: string;
 }
 
 export class TokenProcessor {

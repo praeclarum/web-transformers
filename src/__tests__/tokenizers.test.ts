@@ -53,9 +53,9 @@ describe('t5 tokenizer', () => {
       const pass = decodePass && encodePass;
     }
 
-    let encPassRatio = numEncodePass / numEncode;
+    const encPassRatio = numEncodePass / numEncode;
     expect(encPassRatio).toBeGreaterThan(0.92);
-    let decPassRatio = numDecodePass / numDecode;
+    const decPassRatio = numDecodePass / numDecode;
     expect(decPassRatio).toBeGreaterThan(0.85);
   });
 });

@@ -111,7 +111,7 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
     const endOfDecoderTokenId = 1;
     let encoderOutputs = null;
     let pastKeyValues = null;
-    let outputTokenIds = [startOfDecoderTokenId];
+    const outputTokenIds = [startOfDecoderTokenId];
     let numOutputTokens = 1;
     let shouldContinue = true;
     const maxOutputTokens = numOutputTokens + maxLength;
@@ -125,10 +125,10 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
       sampler = (x: ort.Tensor) => this.sampleLogitsTopK(x, topK);
     }
     while (shouldContinue && numOutputTokens < maxOutputTokens) {
-      let output: Seq2SeqLMOutput = await this.forward(inputTokenIds, outputTokenIds, encoderOutputs, pastKeyValues);
+      const output: Seq2SeqLMOutput = await this.forward(inputTokenIds, outputTokenIds, encoderOutputs, pastKeyValues);
       pastKeyValues = output.pastKeyValues;
       encoderOutputs = output.encoderOutputs;
-      let newTokenId = sampler(output.logits);
+      const newTokenId = sampler(output.logits);
       outputTokenIds.push(newTokenId);
       numOutputTokens++;
       await progress();
@@ -140,14 +140,14 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
   }
 
   private sampleLogitsGreedily(logits: ort.Tensor): number {
-    let shape = logits.dims;
-    let [batchSize, seqLength, vocabSize] = shape;
-    let n = batchSize * seqLength * vocabSize;
-    let startIndex = n - vocabSize;
+    const shape = logits.dims;
+    const [batchSize, seqLength, vocabSize] = shape;
+    const n = batchSize * seqLength * vocabSize;
+    const startIndex = n - vocabSize;
     let argmaxi = 0;
     let argmax = logits.data[startIndex + argmaxi];
     for (let i = 1; i < vocabSize; i++) {
-      let l = logits.data[startIndex + i];
+      const l = logits.data[startIndex + i];
       if (l > argmax) {
         argmaxi = i;
         argmax = l;
@@ -157,13 +157,13 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
   }
 
   private sampleLogitsTopK(logits: ort.Tensor, k: number): number {
-    let shape = logits.dims;
-    let [batchSize, seqLength, vocabSize] = shape;
-    let n = batchSize * seqLength * vocabSize;
-    let startIndex = n - vocabSize;
-    let logs = logits.data.slice(startIndex) as Float32Array;
+    const shape = logits.dims;
+    const [batchSize, seqLength, vocabSize] = shape;
+    const n = batchSize * seqLength * vocabSize;
+    const startIndex = n - vocabSize;
+    const logs = logits.data.slice(startIndex) as Float32Array;
     k = Math.min(k, vocabSize);
-    let logitAndId = Array.from(logs)
+    const logitAndId = Array.from(logs)
       .map((x, i) => [x, i])
       .sort((a, b) => b[0] - a[0]);
     const sMin = Math.exp(-100.0);

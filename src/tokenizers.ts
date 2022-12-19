@@ -138,7 +138,7 @@ export class Tokenizer {
       const mblen = 1;
       let hasSingleNode = false;
       const tokens = [];
-      for (let token of this.trie.commonPrefixSearch(sentence.slice(beginPos))) {
+      for (const token of this.trie.commonPrefixSearch(sentence.slice(beginPos))) {
         tokens.push(token);
         const tokenId = this.getTokenId(token);
         const tokenScore = Number(this.vocab[tokenId][1]);
@@ -165,7 +165,7 @@ export class Tokenizer {
     const normalized = this.normalize(text);
     const pre = this.preTokenize([normalized]);
     const tokens = [];
-    for (let token of pre) {
+    for (const token of pre) {
       const tokenized = this.tokenize(token);
       tokens.push(...tokenized);
     }
@@ -276,11 +276,11 @@ class TokenLattice {
       if (this.beginNodes[pos].length == 0) {
         return [];
       }
-      for (let rnode of this.beginNodes[pos]) {
+      for (const rnode of this.beginNodes[pos]) {
         rnode.prev = null;
         let bestScore = 0.0;
         let bestNode = null;
-        for (let lnode of this.endNodes[pos]) {
+        for (const lnode of this.endNodes[pos]) {
           const score = lnode.backtraceScore + rnode.score;
           if (bestNode === null || score > bestScore) {
             bestNode = lnode.clone();
@@ -386,7 +386,7 @@ class MetaspaceTokenProcessor extends TokenProcessor {
   }
   override preTokenize(normalizedTokens: string[]) {
     const result = [];
-    for (let token of normalizedTokens) {
+    for (const token of normalizedTokens) {
       let normalized = token.replace(' ', this.strRep);
       if (this.addPrefixSpace && !normalized.startsWith(this.replacement)) {
         normalized = this.strRep + normalized;
@@ -398,7 +398,7 @@ class MetaspaceTokenProcessor extends TokenProcessor {
   decodeChain(tokens: string[]): string[] {
     const result = [];
     let i = 0;
-    for (let token of tokens) {
+    for (const token of tokens) {
       let normalized = token.replace(this.replacement, ' ');
       if (this.addPrefixSpace && i == 0 && normalized.startsWith(' ')) {
         normalized = normalized.substring(1);
@@ -428,7 +428,7 @@ class SequenceTokenProcessor extends TokenProcessor {
   }
   override preTokenize(normalizedTokens: string[]) {
     let result = normalizedTokens;
-    for (let tokenizer of this.tokenizers) {
+    for (const tokenizer of this.tokenizers) {
       result = tokenizer.preTokenize(result);
     }
     return result;
@@ -438,7 +438,7 @@ class SequenceTokenProcessor extends TokenProcessor {
 class WhitespaceSplitTokenProcessor extends TokenProcessor {
   preTokenize(normalizedTokens: string[]) {
     const result = [];
-    for (let token of normalizedTokens) {
+    for (const token of normalizedTokens) {
       result.push(...token.split(/\s+/));
     }
     return result;

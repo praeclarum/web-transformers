@@ -11,7 +11,6 @@ export default function Home() {
   const modelId = "t5-small";
   const modelsPath = "/models";
 
-  const [status, setStatus] = useState('Loading...');
   const [inputLang, setInputLang] = useState('English');
   const [outputLang, setOutputLang] = useState('French');
   const [inputText, setInputText] = useState('The universe is a dark forest.');
@@ -21,7 +20,6 @@ export default function Home() {
   const tokenizer = useRef(AutoTokenizer.fromPretrained(modelId, modelsPath));
   const model = useRef(AutoModelForSeq2SeqLM.fromPretrained(modelId, modelsPath, async function (progress) {
     const message = `Loading the neural network... ${Math.round(progress * 100)}%`;
-    setStatus(message);
     setOutputText(message);
   }));
 
@@ -52,38 +50,32 @@ export default function Home() {
     const finalOutput = (await tokenizer.current.decode(finalOutputTokenIds, true)).trim();
     setInputDebug(fullInput + " = " + inputTokenIds.join(" "));
     setOutputText(finalOutput);
-    setStatus("Ready");
   };
 
   const workerRef = useRef<Worker>();
   useEffect(() => {
-    workerRef.current = new Worker(new URL('../worker.ts', import.meta.url))
-    workerRef.current.onmessage = (event: MessageEvent<number>) =>
-      setOutputText(event.data+"");
+    workerRef.current = new Worker(new URL('../worker.ts', import.meta.url));
+    workerRef.current.onmessage = (event: MessageEvent<any>) => {
+      // console.log("received message from worker", event.data)
+      setOutputText(event.data.outputText);
+    };
     return () => {
       if (workerRef.current)
         workerRef.current.terminate();
     }
   }, []);
-  // const handleWork = useCallback(async () => {
-  //   if (workerRef.current)
-  //       workerRef.current.postMessage(100000);
-  // }, []);
 
   const translate = async (inputText: string, outputLang: string) => {
-    const fullInput = `translate ${inputLang} from English to ${outputLang}: ${inputText.trim()}`;
+    const fullInput = `translate from ${inputLang} to ${outputLang}: ${inputText.trim()}`;
     const command = {
-      "command": "generate",
-      "input": fullInput,
+      "inputText": fullInput,
       "modelId": modelId,
       "modelsPath": modelsPath,
-      "generationOptions": {
-        "maxLength": 50,
-        "topK": 0,
-      }
+      "maxLength": 50,
+      "topK": 0,
     };
     if (workerRef.current)
-        workerRef.current.postMessage(command);
+      workerRef.current.postMessage(command);
   };
 
   return (
@@ -97,7 +89,6 @@ export default function Home() {
 
         <section className="translator">
             <div className="translation-form">
-                <p><b>Status</b> <span id="status">{status}</span></p>
                 <div className="translation-group">
                     <div className="translation-input">
                         <p>

@@ -13,51 +13,67 @@ class ModelData {
     }
 }
 
-class GenerationRequest {
-    input: string = "";
-    maxLength: number = 50;
+interface Seq2SeqCommand {
+    inputText: string;
+    maxLength: number;
     topK: number | undefined;
     modelId: string;
     modelsPath: string;
-    constructor(modelId: string, modelsPath: string) {
-        this.modelId = modelId;
-        this.modelsPath = modelsPath;
-    }
-    equals(other: GenerationRequest) {
-        return this.input === other.input &&
-            this.modelId === other.modelId &&
-            this.modelsPath === other.modelsPath &&
-            this.maxLength === other.maxLength &&
-            this.topK === other.topK;
-    }
 }
 
-let lastRequest: GenerationRequest | null = null;
-let executingRequest: GenerationRequest | null = null;
+function commandsEqual(req: Seq2SeqCommand, other: Seq2SeqCommand) {
+    return req.inputText === other.inputText &&
+        req.modelId === other.modelId &&
+        req.modelsPath === other.modelsPath &&
+        req.maxLength === other.maxLength &&
+        req.topK === other.topK;
+}
+
+let lastRequest: Seq2SeqCommand | null = null;
+let executingRequest: Seq2SeqCommand | null = null;
 
 let executingModelData: ModelData | null = null;
 
-const generate = async (request: GenerationRequest) => {
-    const model = new ModelData(request.modelId, request.modelsPath);
-    executingModelData = model;
-    function shouldContinue(): boolean {
-        return executingRequest !== null && request.equals(executingRequest);
+function getModelData(modelId: string, modelsPath: string) {
+    if (executingModelData !== null && executingModelData.modelId === modelId && executingModelData.modelsPath === modelsPath) {
+        return executingModelData;
     }
-    console.log(`Generating from input '{request.input}' with model '{request.modelId}'`);
-    const inputText = request.input;
+    else {
+        return new ModelData(modelId, modelsPath);
+    }
+}
+
+const generate = async (request: Seq2SeqCommand) => {
+    const model = getModelData(request.modelId, request.modelsPath);
+    executingModelData = model;
+    executingRequest = request;
+    function shouldContinue(): boolean {
+        return executingRequest !== null && commandsEqual(request, executingRequest);
+    }
+    // console.log(`Generating from input '${request.inputText}' with model '${request.modelId}'`);
+    const inputText = request.inputText;
     const inputTokenIds = await model.tokenizer.encode(inputText);
-    console.log(`Generating from tokens: {inputTokenIds}`);
+    // console.log(`Generating from tokens: ${inputTokenIds}`);
     const generationOptions = {
         "maxLength": request.maxLength,
         "topK": request.topK,
     };
+    function delayMillis(millis: number) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+            resolve(0);
+            }, millis);
+        });
+    }
     async function generateProgress(outputTokenIds: number[], forInputIds: number[]) {
         if (shouldContinue()) {
             const outputText = (await model.tokenizer.decode(outputTokenIds, true)).trim();
             postMessage({"inputText": inputText, "outputText": outputText, "complete": false});
+            await delayMillis(1);
             return true;
         }
         else {
+            // console.log("Generation cancelled");
             return false;
         }
     }
@@ -66,12 +82,12 @@ const generate = async (request: GenerationRequest) => {
     postMessage({"inputText": inputText, "outputText": finalOutput, "complete": true});
 }
 
-console.log("Hello from worker.ts");
+// console.log("Hello from worker.ts");
 // translate("Hello world", "English", "French");
 
 onmessage = (e) => {
     const request = e.data;
     lastRequest = request;
-    console.log('Message received from main script:', request);
+    // console.log('Message received from main script:', request);
     generate(request);    
 }

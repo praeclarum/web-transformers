@@ -4,7 +4,34 @@
 
 Transformer neural networks in the browser.
 
-## Sample
+
+## Usage
+
+```typescript
+// Load the tokenizer and model
+const tokenizer = AutoTokenizer.fromPretrained(modelId, modelsPath);
+const model = AutoModelForSeq2SeqLM.fromPretrained(modelId, modelsPath, async function (progress) {
+    console.log(`Loading the neural network... ${Math.round(progress * 100)}%`);
+});
+
+// Generate text using Seq2Seq
+async function generate(inputText: string) {
+    const generationOptions = {
+        "maxLength": 50,
+        "topK": 0,
+    };
+    const inputTokenIds = await tokenizer.encode(inputText);
+    async function generateProgress(outputTokenIds: number[], forInputIds: number[]) {
+        let shouldContinue = true;
+        return shouldContinue;
+    }
+    const finalOutputTokenIds = await model.generate(inputTokenIds, generationOptions, generateProgress);
+    const finalOutput = (await tokenizer.decode(finalOutputTokenIds, true)).trim();
+    console.log(finalOutput);
+};
+```
+
+## Sample Web App
 
 This repo contains a sample nextjs app that translates text using a transformer neural network.
 

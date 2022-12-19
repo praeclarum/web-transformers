@@ -1,7 +1,7 @@
-import { AutoModelForSeq2SeqLM } from '../index';
+import { T5ForConditionalGeneration } from '../index';
 
 describe('transformers', () => {
   test('nop', () => {
-    expect(AutoModelForSeq2SeqLM).toBeTruthy();
+    expect(T5ForConditionalGeneration).toBeTruthy();
   });
 });

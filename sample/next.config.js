@@ -18,19 +18,30 @@ const nextConfig = {
           {
             from: './node_modules/onnxruntime-web/dist/ort-wasm.wasm',
             to: 'static/chunks/pages',
-          },             {
+          },
+          {
             from: './node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm',
             to: 'static/chunks/pages',
-          },          
-            // {
-            //   from: './model',
-            //   to: 'static/chunks/pages',
-            // },
-          ],
-        }),
-      );
+          },
+        ],
+      }),
+    );
     return config;
-  }
+  },
+  async redirects() {
+    return [
+      {
+        source: '/ort-wasm.wasm',
+        destination: '/_next/static/chunks/pages/ort-wasm.wasm',
+        permanent: true,
+      },
+      {
+        source: '/ort-wasm-simd.wasm',
+        destination: '/_next/static/chunks/pages/ort-wasm-simd.wasm',
+        permanent: true,
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig

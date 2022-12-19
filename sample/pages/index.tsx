@@ -1,28 +1,14 @@
-import Head from 'next/head'
-import Image from 'next/image'
-import styles from '../styles/Home.module.css'
-
-import { AutoTokenizer, AutoModelForSeq2SeqLM } from '../../lib';
-
-import { useState, useRef, FormEvent, ChangeEvent, useEffect, useMemo } from 'react';
+import { useState, useRef, FormEvent, ChangeEvent, useEffect } from 'react';
 
 export default function Home() {
 
   const modelId = "t5-small";
+  const modelsPath = "/models";
 
-  const [status, setStatus] = useState('Loading...');
   const [inputLang, setInputLang] = useState('English');
   const [outputLang, setOutputLang] = useState('French');
   const [inputText, setInputText] = useState('The universe is a dark forest.');
-  const [inputDebug, setInputDebug] = useState('');
   const [outputText, setOutputText] = useState('');
-
-  const tokenizer = useRef(AutoTokenizer.fromPretrained(modelId, "/models"));
-  const model = useRef(AutoModelForSeq2SeqLM.fromPretrained(modelId, "/models", async function (progress) {
-    const message = `Loading the neural network... ${Math.round(progress * 100)}%`;
-    setStatus(message);
-    setOutputText(message);
-  }));
 
   async function onInputChanged(event: FormEvent<HTMLTextAreaElement>) {
     const newInput = event.currentTarget.value;
@@ -36,22 +22,30 @@ export default function Home() {
     translate(inputText, newOutputLang);
   }
 
-  const translate = async (inputText: string, outputLang: string) => {
-    const generationOptions = {
-        "maxLength": 50,
-        "topK": 0,
+  const workerRef = useRef<Worker>();
+  useEffect(() => {
+    workerRef.current = new Worker(new URL('../worker.ts', import.meta.url));
+    workerRef.current.onmessage = (event: MessageEvent<any>) => {
+      setOutputText(event.data.outputText);
     };
-    const fullInput = `translate ${inputLang} to ${outputLang}: ${inputText.trim()}`;
-    const inputTokenIds = await tokenizer.current.encode(fullInput);
-    async function generateProgress(outputTokenIds: number[], forInputIds: number[]) {
-        let shouldContinue = true;
-        return shouldContinue;
+    translate(inputText, outputLang);
+    return () => {
+      if (workerRef.current)
+        workerRef.current.terminate();
     }
-    const finalOutputTokenIds = await model.current.generate(inputTokenIds, generationOptions, generateProgress);
-    const finalOutput = (await tokenizer.current.decode(finalOutputTokenIds, true)).trim();
-    setInputDebug(fullInput + " = " + inputTokenIds.join(" "));
-    setOutputText(finalOutput);
-    setStatus("Ready");
+  }, []);
+
+  const translate = async (inputText: string, outputLang: string) => {
+    const fullInput = `translate from ${inputLang} to ${outputLang}: ${inputText.trim()}`;
+    const command = {
+      "inputText": fullInput,
+      "modelId": modelId,
+      "modelsPath": modelsPath,
+      "maxLength": 50,
+      "topK": 0,
+    };
+    if (workerRef.current)
+      workerRef.current.postMessage(command);
   };
 
   return (
@@ -65,7 +59,6 @@ export default function Home() {
 
         <section className="translator">
             <div className="translation-form">
-                <p><b>Status</b> <span id="status">{status}</span></p>
                 <div className="translation-group">
                     <div className="translation-input">
                         <p>
@@ -75,7 +68,6 @@ export default function Home() {
                         </p>
                         <textarea id="input" name="input" className="input"
                             onInput={onInputChanged} value={inputText}></textarea>
-                        <p id="inputDebug" className="debug">{inputDebug}</p>
                     </div>
                     <div className="translation-output">
                         <p>

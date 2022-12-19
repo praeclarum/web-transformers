@@ -12,6 +12,37 @@ export class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
     super(modelId, modelsPath, progressAsyncCallback);
   }
 
+  protected override async loadSessions(): Promise<ort.InferenceSession[]> {
+    const modelIdParts = this.modelId.split('/');
+    const modelName = modelIdParts[modelIdParts.length - 1];
+    const suffix = '-quantized';
+    const encoderUrl = `${this.modelsPath}/${modelName}-encoder${suffix}.onnx`;
+    const initDecoderUrl = `${this.modelsPath}/${modelName}-init-decoder${suffix}.onnx`;
+    const decoderUrl = `${this.modelsPath}/${modelName}-decoder${suffix}.onnx`;
+
+    const progressMax = 4;
+    let progress = 0;
+    const incrementProgress = async () => {
+      progress++;
+      const p = progress / progressMax;
+      // console.log(`Loading model ${this.modelId}... ${p * 100}%`);
+      if (this.progressAsyncCallback) {
+        await this.progressAsyncCallback(p);
+      }
+    };
+    await incrementProgress();
+    const encoderSessionPromise = this.loadSession(encoderUrl);
+    const initDecoderSessionPromise = this.loadSession(initDecoderUrl);
+    const decoderSessionPromise = this.loadSession(decoderUrl);
+    const encoderSession = await encoderSessionPromise;
+    await incrementProgress();
+    const initDecoderSession = await initDecoderSessionPromise;
+    await incrementProgress();
+    const decoderSession = await decoderSessionPromise;
+    await incrementProgress();
+    return [encoderSession, initDecoderSession, decoderSession];
+  }
+
   protected override async forward(
     inputIds: number[],
     decoderInputIds: number[],

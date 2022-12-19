@@ -5,9 +5,9 @@ import { NamedTensor } from './NamedTensor';
 import { Seq2SeqLMOutput } from './Seq2SeqLMOutput';
 
 export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
-  private modelId: string;
-  private modelsPath: string;
-  private progressAsyncCallback: ((progress: number) => Promise<void>) | undefined;
+  public readonly modelId: string;
+  public readonly modelsPath: string;
+  protected progressAsyncCallback: ((progress: number) => Promise<void>) | undefined;
   private sessions: ort.InferenceSession[] = [];
 
   protected constructor(
@@ -25,38 +25,11 @@ export abstract class AutoModelForSeq2SeqLM extends PretrainedModel {
     if (this.sessions.length > 0) {
       return this.sessions;
     }
-
-    const modelIdParts = this.modelId.split('/');
-    const modelName = modelIdParts[modelIdParts.length - 1];
-    const suffix = '-quantized';
-    const encoderUrl = `${this.modelsPath}/${modelName}-encoder${suffix}.onnx`;
-    const initDecoderUrl = `${this.modelsPath}/${modelName}-init-decoder${suffix}.onnx`;
-    const decoderUrl = `${this.modelsPath}/${modelName}-decoder${suffix}.onnx`;
-
-    const progressMax = 4;
-    let progress = 0;
-    const incrementProgress = async () => {
-      progress++;
-      const p = progress / progressMax;
-      console.log(`Loading model ${this.modelId}... ${p * 100}%`);
-      if (this.progressAsyncCallback) {
-        await this.progressAsyncCallback(p);
-      }
-    };
-    await incrementProgress();
-    const encoderSessionPromise = PretrainedModel.loadSession(encoderUrl);
-    const initDecoderSessionPromise = PretrainedModel.loadSession(initDecoderUrl);
-    const decoderSessionPromise = PretrainedModel.loadSession(decoderUrl);
-    const encoderSession = await encoderSessionPromise;
-    await incrementProgress();
-    const initDecoderSession = await initDecoderSessionPromise;
-    await incrementProgress();
-    const decoderSession = await decoderSessionPromise;
-    await incrementProgress();
-
-    this.sessions = [encoderSession, initDecoderSession, decoderSession];
+    this.sessions = await this.loadSessions();
     return this.sessions;
   }
+
+  protected abstract loadSessions(): Promise<ort.InferenceSession[]>;
 
   /**
    * Generate a sequence of tokens.

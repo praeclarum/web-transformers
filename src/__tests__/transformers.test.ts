@@ -1,8 +1,7 @@
 import { transformers } from '../index';
 
 describe('transformers', () => {
-  beforeAll(() => {
-  });
+  beforeAll(() => {});
 
   test('nop', () => {});
 });

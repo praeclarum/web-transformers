@@ -21,34 +21,32 @@ describe('t5 tokenizer', () => {
       const inputText = String(test[0]);
       const expectedEncode: number[] = test[1] as any;
       const expectedDecode = String(test[2]);
-      const tokenizer = tokenizers.Tokenizer.fromConfig(require("./t5-base-tokenizer.json"));
+      const tokenizer = tokenizers.Tokenizer.fromConfig(require('./t5-base-tokenizer.json'));
       let testEncode: number[] = [];
-      let encError = "";
-      let decError = "";
+      let encError = '';
+      let decError = '';
       try {
-          testEncode = tokenizer.encode(inputText);
+        testEncode = tokenizer.encode(inputText);
+      } catch (e: any) {
+        encError = String(e.message);
       }
-      catch (e: any) {
-          encError = String(e.message);
-      }
-      let testDecode = "";
+      let testDecode = '';
       try {
-          testDecode = tokenizer.decode(testEncode, false);
-      }
-      catch (e: any) {
-          decError = String(e.message);
+        testDecode = tokenizer.decode(testEncode, false);
+      } catch (e: any) {
+        decError = String(e.message);
       }
       const decodePass = testDecode === expectedDecode;
       numDecode += 1;
       numDecodePass += decodePass ? 1 : 0;
       let encodePass = testEncode.length === expectedEncode.length;
       if (encodePass) {
-          for (let i = 0; i < testEncode.length; i++) {
-              if (testEncode[i] !== expectedEncode[i]) {
-                  encodePass = false;
-                  break;
-              }
+        for (let i = 0; i < testEncode.length; i++) {
+          if (testEncode[i] !== expectedEncode[i]) {
+            encodePass = false;
+            break;
           }
+        }
       }
       numEncode += 1;
       numEncodePass += encodePass ? 1 : 0;

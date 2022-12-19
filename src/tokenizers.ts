@@ -21,7 +21,7 @@ interface TokenProcessorConfig {
 }
 
 export class AutoTokenizer {
-  private tokenizer: Tokenizer|null = null;
+  private tokenizer: Tokenizer | null = null;
   private modelId: string;
   private modelsPath: string;
 

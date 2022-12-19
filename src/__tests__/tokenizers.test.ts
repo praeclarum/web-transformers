@@ -1,4 +1,4 @@
-import { tokenizers } from '../index';
+import { Tokenizer } from '../index';
 
 describe('t5 tokenizer', () => {
   let tests: (string | number[])[][];
@@ -21,7 +21,7 @@ describe('t5 tokenizer', () => {
       const inputText = String(test[0]);
       const expectedEncode: number[] = test[1] as any;
       const expectedDecode = String(test[2]);
-      const tokenizer = tokenizers.Tokenizer.fromConfig(require('./t5-base-tokenizer.json'));
+      const tokenizer = Tokenizer.fromConfig(require('./t5-base-tokenizer.json'));
       let testEncode: number[] = [];
       let encError = '';
       let decError = '';

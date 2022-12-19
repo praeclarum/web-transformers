@@ -1,5 +1,5 @@
-export * as tokenizers from './tokenizers';
 export * as transformers from './transformers';
 
-export { AutoTokenizer } from './tokenizers';
+export { AutoTokenizer } from './AutoTokenizer';
+export { Tokenizer } from './Tokenizer';
 export { AutoModelForSeq2SeqLM, GenerateOptions } from './transformers';

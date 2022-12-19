@@ -8,6 +8,8 @@ Transformer neural networks in the browser.
 ## Usage
 
 ```typescript
+import { AutoTokenizer, AutoModelForSeq2SeqLM } from 'web-transformers';
+
 // Load the tokenizer and model
 const tokenizer = AutoTokenizer.fromPretrained(modelId, modelsPath);
 const model = AutoModelForSeq2SeqLM.fromPretrained(modelId, modelsPath, async function (progress) {

@@ -1,10 +1,4 @@
-import Head from 'next/head'
-import Image from 'next/image'
-import styles from '../styles/Home.module.css'
-
-import { AutoTokenizer, AutoModelForSeq2SeqLM } from '../../lib';
-
-import { useState, useRef, useCallback, FormEvent, ChangeEvent, useEffect, useMemo } from 'react';
+import { useState, useRef, FormEvent, ChangeEvent, useEffect } from 'react';
 
 export default function Home() {
 
@@ -14,14 +8,7 @@ export default function Home() {
   const [inputLang, setInputLang] = useState('English');
   const [outputLang, setOutputLang] = useState('French');
   const [inputText, setInputText] = useState('The universe is a dark forest.');
-  const [inputDebug, setInputDebug] = useState('');
   const [outputText, setOutputText] = useState('');
-
-  const tokenizer = useRef(AutoTokenizer.fromPretrained(modelId, modelsPath));
-  const model = useRef(AutoModelForSeq2SeqLM.fromPretrained(modelId, modelsPath, async function (progress) {
-    const message = `Loading the neural network... ${Math.round(progress * 100)}%`;
-    setOutputText(message);
-  }));
 
   async function onInputChanged(event: FormEvent<HTMLTextAreaElement>) {
     const newInput = event.currentTarget.value;
@@ -35,28 +22,10 @@ export default function Home() {
     translate(inputText, newOutputLang);
   }
 
-  const translateWithModel = async (inputText: string, outputLang: string) => {
-    const generationOptions = {
-        "maxLength": 50,
-        "topK": 0,
-    };
-    const fullInput = `translate ${inputLang} to ${outputLang}: ${inputText.trim()}`;
-    const inputTokenIds = await tokenizer.current.encode(fullInput);
-    async function generateProgress(outputTokenIds: number[], forInputIds: number[]) {
-        let shouldContinue = true;
-        return shouldContinue;
-    }
-    const finalOutputTokenIds = await model.current.generate(inputTokenIds, generationOptions, generateProgress);
-    const finalOutput = (await tokenizer.current.decode(finalOutputTokenIds, true)).trim();
-    setInputDebug(fullInput + " = " + inputTokenIds.join(" "));
-    setOutputText(finalOutput);
-  };
-
   const workerRef = useRef<Worker>();
   useEffect(() => {
     workerRef.current = new Worker(new URL('../worker.ts', import.meta.url));
     workerRef.current.onmessage = (event: MessageEvent<any>) => {
-      // console.log("received message from worker", event.data)
       setOutputText(event.data.outputText);
     };
     translate(inputText, outputLang);
@@ -99,7 +68,6 @@ export default function Home() {
                         </p>
                         <textarea id="input" name="input" className="input"
                             onInput={onInputChanged} value={inputText}></textarea>
-                        <p id="inputDebug" className="debug">{inputDebug}</p>
                     </div>
                     <div className="translation-output">
                         <p>

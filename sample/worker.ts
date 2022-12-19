@@ -1,5 +1,14 @@
 import { AutoTokenizer, AutoModelForSeq2SeqLM } from '../lib';
 
+// This is the command message sent from the UI to the worker
+interface Seq2SeqCommand {
+    inputText: string;
+    maxLength: number;
+    topK: number | undefined;
+    modelId: string;
+    modelsPath: string;
+}
+
 class ModelData {
     modelId: string;
     modelsPath: string;
@@ -16,14 +25,6 @@ class ModelData {
     }
 }
 
-interface Seq2SeqCommand {
-    inputText: string;
-    maxLength: number;
-    topK: number | undefined;
-    modelId: string;
-    modelsPath: string;
-}
-
 function commandsEqual(req: Seq2SeqCommand, other: Seq2SeqCommand) {
     return req.inputText === other.inputText &&
         req.modelId === other.modelId &&
@@ -32,8 +33,7 @@ function commandsEqual(req: Seq2SeqCommand, other: Seq2SeqCommand) {
         req.topK === other.topK;
 }
 
-let lastRequest: Seq2SeqCommand | null = null;
-let executingRequest: Seq2SeqCommand | null = null;
+let executingCommand: Seq2SeqCommand | null = null;
 
 let executingModelData: ModelData | null = null;
 
@@ -46,20 +46,20 @@ function getModelData(modelId: string, modelsPath: string) {
     }
 }
 
-const generate = async (request: Seq2SeqCommand) => {
-    const model = getModelData(request.modelId, request.modelsPath);
+const generate = async (command: Seq2SeqCommand) => {
+    const model = getModelData(command.modelId, command.modelsPath);
     executingModelData = model;
-    executingRequest = request;
+    executingCommand = command;
     function shouldContinue(): boolean {
-        return executingRequest !== null && commandsEqual(request, executingRequest);
+        return executingCommand !== null && commandsEqual(command, executingCommand);
     }
-    // console.log(`Generating from input '${request.inputText}' with model '${request.modelId}'`);
-    const inputText = request.inputText;
+    // console.log(`Generating from input '${command.inputText}' with model '${command.modelId}'`);
+    const inputText = command.inputText;
     const inputTokenIds = await model.tokenizer.encode(inputText);
     // console.log(`Generating from tokens: ${inputTokenIds}`);
     const generationOptions = {
-        "maxLength": request.maxLength,
-        "topK": request.topK,
+        "maxLength": command.maxLength,
+        "topK": command.topK,
     };
     function delayMillis(millis: number) {
         return new Promise((resolve) => {
@@ -85,12 +85,8 @@ const generate = async (request: Seq2SeqCommand) => {
     postMessage({"inputText": inputText, "outputText": finalOutput, "complete": true});
 }
 
-// console.log("Hello from worker.ts");
-// translate("Hello world", "English", "French");
-
-onmessage = (e) => {
-    const request = e.data;
-    lastRequest = request;
-    // console.log('Message received from main script:', request);
-    generate(request);    
+onmessage = (e: MessageEvent<Seq2SeqCommand>) => {
+    const command = e.data;
+    // console.log('Message received from main script:', command);
+    generate(command);
 }

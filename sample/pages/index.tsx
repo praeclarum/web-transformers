@@ -59,6 +59,7 @@ export default function Home() {
       // console.log("received message from worker", event.data)
       setOutputText(event.data.outputText);
     };
+    translate(inputText, outputLang);
     return () => {
       if (workerRef.current)
         workerRef.current.terminate();

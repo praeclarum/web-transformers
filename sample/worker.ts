@@ -9,7 +9,10 @@ class ModelData {
         this.modelId = modelId;
         this.modelsPath = modelsPath;
         this.tokenizer = AutoTokenizer.fromPretrained(modelId, modelsPath);
-        this.model = AutoModelForSeq2SeqLM.fromPretrained(modelId, modelsPath);
+        this.model = AutoModelForSeq2SeqLM.fromPretrained(modelId, modelsPath, async progress => {
+            const message = `Loading model... ${progress*100}%`;
+            postMessage({"inputText": "", "outputText": message, "complete": false});
+        });
     }
 }
 

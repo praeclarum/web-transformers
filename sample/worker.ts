@@ -1,4 +1,4 @@
-import { AutoTokenizer, AutoModelForSeq2SeqLM, T5ForConditionalGeneration } from '../lib';
+import { AutoTokenizer, T5ForConditionalGeneration } from '../lib';
 
 // This is the command message sent from the UI to the worker
 interface Seq2SeqCommand {
@@ -13,7 +13,7 @@ class ModelData {
     modelId: string;
     modelsPath: string;
     tokenizer: AutoTokenizer;
-    model: AutoModelForSeq2SeqLM;
+    model: T5ForConditionalGeneration;
     constructor(modelId: string, modelsPath: string) {
         this.modelId = modelId;
         this.modelsPath = modelsPath;

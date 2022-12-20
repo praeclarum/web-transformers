@@ -36,7 +36,7 @@ export default function Home() {
   }, []);
 
   const translate = async (inputText: string, outputLang: string) => {
-    const fullInput = `translate from ${inputLang} to ${outputLang}: ${inputText.trim()}`;
+    const fullInput = `translate ${inputLang} to ${outputLang}: ${inputText.trim()}`;
     const command = {
       "inputText": fullInput,
       "modelId": modelId,

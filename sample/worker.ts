@@ -53,10 +53,8 @@ const generate = async (command: Seq2SeqCommand) => {
     function shouldContinue(): boolean {
         return executingCommand !== null && commandsEqual(command, executingCommand);
     }
-    // console.log(`Generating from input '${command.inputText}' with model '${command.modelId}'`);
     const inputText = command.inputText;
     const inputTokenIds = await model.tokenizer.encode(inputText);
-    // console.log(`Generating from tokens: ${inputTokenIds}`);
     const generationOptions = {
         "maxLength": command.maxLength,
         "topK": command.topK,
@@ -76,7 +74,6 @@ const generate = async (command: Seq2SeqCommand) => {
             return true;
         }
         else {
-            // console.log("Generation cancelled");
             return false;
         }
     }
@@ -87,6 +84,5 @@ const generate = async (command: Seq2SeqCommand) => {
 
 onmessage = (e: MessageEvent<Seq2SeqCommand>) => {
     const command = e.data;
-    // console.log('Message received from main script:', command);
     generate(command);
 }

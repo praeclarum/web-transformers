@@ -25,7 +25,6 @@ export class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
     const incrementProgress = async () => {
       progress++;
       const p = progress / progressMax;
-      // console.log(`Loading model ${this.modelId}... ${p * 100}%`);
       if (this.progressAsyncCallback) {
         await this.progressAsyncCallback(p);
       }
@@ -59,7 +58,6 @@ export class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
     ]);
     const [encoderSession, initDecoderSession, decoderSession] = await this.getSessions();
     if (encoderOutputs === null) {
-      // console.log("Encoding...");
       const encoderFeeds = {
         input_ids: inputIdsTensor,
         attention_mask: encoderAttentionMaskTensor,
@@ -67,14 +65,12 @@ export class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
       const encoderResults = await encoderSession.run(encoderFeeds);
       const encoderHiddenStates = encoderResults.hidden_states;
       encoderOutputs = encoderHiddenStates;
-      // console.log("Encoding done.", encoderOutputs);
     }
 
     const decoderInputIdsTensor = new ort.Tensor('int64', new BigInt64Array(decoderInputIds.map((x) => BigInt(x))), [
       1,
       decoderInputIds.length,
     ]);
-    // const decoderAttentionMaskTensor = new ort.Tensor("int64", new BigInt64Array(decoderInputIds.length).fill(1n), [1, decoderInputIds.length]);
     const decoderFeeds: any = {
       input_ids: decoderInputIdsTensor,
       encoder_attention_mask: encoderAttentionMaskTensor,
@@ -83,20 +79,16 @@ export class T5ForConditionalGeneration extends AutoModelForSeq2SeqLM {
     let logits = null;
 
     if (pastKeyValues === null) {
-      // console.log("Init Decoding...");
       const initDecoderResults = await initDecoderSession.run(decoderFeeds);
       logits = initDecoderResults.logits;
       pastKeyValues = this.getPastKeyValues(initDecoderSession.outputNames.slice(1), initDecoderResults);
-      // console.log("Init Decoding done.", logits, pastKeyValues);
     } else {
-      // console.log("Decoding...");
       for (const p of pastKeyValues) {
         decoderFeeds[p.name] = p.data;
       }
       const decoderResults = await decoderSession.run(decoderFeeds);
       logits = decoderResults.logits;
       pastKeyValues = this.getPastKeyValues(decoderSession.outputNames.slice(1), decoderResults);
-      // console.log("Decoding done.", logits, pastKeyValues);
     }
     return new Seq2SeqLMOutput(logits, pastKeyValues, encoderOutputs);
   }

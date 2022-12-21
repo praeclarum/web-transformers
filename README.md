@@ -47,10 +47,24 @@ console.log(await generate("translate English to French: Hello World!"));
 
 This repo contains a [sample nextjs app](sample) that translates text using a transformer neural network.
 
-Before you can run the sample, you need to download the model files. You can do this by running the following command:
+First build the library:
+
+```bash
+git clone git@github.com:praeclarum/web-transformers.git
+cd web-transformers
+npm i
+```
+
+Now, build the sample:
 
 ```bash
 cd sample
+npm i
+```
+
+Before running the sample, you need to download the model files that will be executed. You can do this by running the following command:
+
+```bash
 npm run download_models
 ```
 

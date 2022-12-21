@@ -82,7 +82,7 @@ export default function Home() {
                     </div>
                 </div>
                 <p>This translator uses the
-                    <a id="modellink" href="https://huggingface.co/t5-base">t5-base</a>
+                    <a id="modellink" href="https://huggingface.co/t5-small">t5-small</a>
                     neural network.</p>
             </div>
         </section>
